@@ -9,8 +9,6 @@ import (
 	"github.com/alfiankan/qiscus-fifo-custom-agent-allocator/utils"
 )
 
-
-
 type AgentPoolConfig struct {
 	MaxServedCustomerPerAgent int
 	SyncInterval              int
@@ -101,8 +99,8 @@ func (self *AgentPool) AllocateAgent(roomId int) (err error) {
 	for {
 		if self.lastRoundRobinPointer > len(self.agents)-1 {
 			err = errors.New("ALL AGENTS ARE BUSY")
-      self.lastRoundRobinPointer = 0
-      self.lock.Unlock()
+			self.lastRoundRobinPointer = 0
+			self.lock.Unlock()
 			return
 		}
 		pickedAgent := self.agents[self.lastRoundRobinPointer]
@@ -129,6 +127,6 @@ func (self *AgentPool) AllocateAgent(roomId int) (err error) {
 	}
 
 	self.lastRoundRobinPointer += 1
-  self.lock.Unlock()
+	self.lock.Unlock()
 	return
 }

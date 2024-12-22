@@ -73,15 +73,15 @@ func (self *MessageQueuRabbitMQ) Pull(fn handleNewChatQueued) (err error) {
 		return
 	}
 
-  deepSleepMaxTried := 100
-  deepSleepThreshold := 0
-  deepSleepInterval := 10 * time.Second
+	deepSleepMaxTried := 100
+	deepSleepThreshold := 0
+	deepSleepInterval := 10 * time.Second
 
 	for msg := range msgs {
-    if deepSleepThreshold > deepSleepMaxTried {
-      time.Sleep(deepSleepInterval)
-      deepSleepThreshold = 0
-    }
+		if deepSleepThreshold > deepSleepMaxTried {
+			time.Sleep(deepSleepInterval)
+			deepSleepThreshold = 0
+		}
 
 		utils.LogWrite(self.logLabel, utils.LOG_DEBUG, "RECEIVING QUEUE", string(msg.Body))
 		roomId, err := strconv.Atoi(string(msg.Body))
@@ -92,7 +92,7 @@ func (self *MessageQueuRabbitMQ) Pull(fn handleNewChatQueued) (err error) {
 			}
 		}
 		if err := fn(roomId); err != nil {
-      deepSleepThreshold += 1
+			deepSleepThreshold += 1
 			utils.LogWrite(self.logLabel, utils.LOG_ERROR, "CANT ALLOCATE AGENT - UNACK MESSAGE", err.Error())
 			if err = msg.Nack(false, true); err != nil {
 				utils.LogWrite(self.logLabel, utils.LOG_DEBUG, "UNACK", err.Error())
