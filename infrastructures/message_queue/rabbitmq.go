@@ -2,6 +2,8 @@ package messagequeue
 
 import (
 	"strconv"
+	"time"
+
 	"github.com/alfiankan/qiscus-fifo-custom-agent-allocator/utils"
 	amqp "github.com/rabbitmq/amqp091-go"
 )
@@ -56,6 +58,52 @@ func (self *MessageQueuRabbitMQ) Push(roomId int) (err error) {
 	return
 }
 
-func (self *MessageQueuRabbitMQ) Pull() (roomId int, err error) {
-  return
+func (self *MessageQueuRabbitMQ) Pull(fn handleNewChatQueued) (err error) {
+
+	msgs, err := self.channel.Consume(
+		self.queueName,
+		"",
+		false,
+		true,
+		false,
+		false,
+		nil,
+	)
+	if err != nil {
+		return
+	}
+
+  deepSleepMaxTried := 100
+  deepSleepThreshold := 0
+  deepSleepInterval := 10 * time.Second
+
+	for msg := range msgs {
+    if deepSleepThreshold > deepSleepMaxTried {
+      time.Sleep(deepSleepInterval)
+      deepSleepThreshold = 0
+    }
+
+		utils.LogWrite(self.logLabel, utils.LOG_DEBUG, "RECEIVING QUEUE", string(msg.Body))
+		roomId, err := strconv.Atoi(string(msg.Body))
+		if err != nil {
+			utils.LogWrite(self.logLabel, utils.LOG_ERROR, "CANT PARSE QUEUE", string(msg.Body))
+			if err = msg.Nack(false, true); err != nil {
+				utils.LogWrite(self.logLabel, utils.LOG_DEBUG, "UNACK", err.Error())
+			}
+		}
+		if err := fn(roomId); err != nil {
+      deepSleepThreshold += 1
+			utils.LogWrite(self.logLabel, utils.LOG_ERROR, "CANT ALLOCATE AGENT - UNACK MESSAGE", err.Error())
+			if err = msg.Nack(false, true); err != nil {
+				utils.LogWrite(self.logLabel, utils.LOG_DEBUG, "UNACK", err.Error())
+			}
+		} else {
+
+			if err = msg.Ack(false); err != nil {
+				utils.LogWrite(self.logLabel, utils.LOG_DEBUG, "ACK", err.Error())
+			}
+		}
+	}
+
+	return
 }

@@ -9,11 +9,7 @@ import (
 	"github.com/alfiankan/qiscus-fifo-custom-agent-allocator/utils"
 )
 
-type Agent struct {
-	ID            int
-	IsAvailable   bool
-	CustomerCount int
-}
+
 
 type AgentPoolConfig struct {
 	MaxServedCustomerPerAgent int
@@ -24,7 +20,7 @@ type AgentPoolConfig struct {
 }
 
 type AgentPool struct {
-	agents                []Agent
+	agents                []int
 	config                AgentPoolConfig
 	logLabel              string
 	lock                  sync.RWMutex
@@ -35,7 +31,7 @@ type AgentPool struct {
 func NewAgentPoolAllocator(cfg AgentPoolConfig) *AgentPool {
 	pool := &AgentPool{
 		config:                cfg,
-		agents:                []Agent{},
+		agents:                []int{},
 		logLabel:              "AGENT_ALLOCATOR",
 		lastRoundRobinPointer: 0,
 		qiscusApi:             *NewQiscusApiClient(cfg.QiscusBaseHttpApiHost, cfg.QiscusApiAuthAppId, cfg.QiscusApiAuthSecret),
@@ -65,7 +61,7 @@ func (self *AgentPool) startBackgroundSync() {
 // remove anavailable agent and get new agent if exist on api
 func (self *AgentPool) syncAgent() {
 
-	syncedAgent := []Agent{}
+	syncedAgent := []int{}
 
 	pageNow := 1
 
@@ -79,11 +75,7 @@ func (self *AgentPool) syncAgent() {
 		}
 
 		for _, agent := range agentsResponseData.Data.Agents.Data {
-			syncedAgent = append(syncedAgent, Agent{
-				ID:            agent.ID,
-				IsAvailable:   false,
-				CustomerCount: agent.CurrentCustomerCount,
-			})
+			syncedAgent = append(syncedAgent, agent.ID)
 		}
 		pageNow += 1
 	}
@@ -106,39 +98,37 @@ func (self *AgentPool) AllocateAgent(roomId int) (err error) {
 	if len(self.agents) > self.lastRoundRobinPointer {
 		self.lastRoundRobinPointer = 0
 	}
-
 	for {
 		if self.lastRoundRobinPointer > len(self.agents)-1 {
-			break
+			err = errors.New("ALL AGENTS ARE BUSY")
+      self.lastRoundRobinPointer = 0
+      self.lock.Unlock()
+			return
 		}
 		pickedAgent := self.agents[self.lastRoundRobinPointer]
 
 		// get latest customer served count from qiscusApi or continue to next agent ids in pool
-		qiscusAgent, err := self.qiscusApi.GetAgentDetailById(pickedAgent.ID)
+		qiscusAgent, err := self.qiscusApi.GetAgentDetailById(pickedAgent)
 		if err != nil {
 			self.lastRoundRobinPointer += 1
 			continue
 		}
-		pickedAgent.CustomerCount = qiscusAgent.CurrentCustomerCount
-		pickedAgent.IsAvailable = qiscusAgent.IsAvailable
 
-		if pickedAgent.CustomerCount == self.config.MaxServedCustomerPerAgent || !pickedAgent.IsAvailable {
+		if qiscusAgent.CurrentCustomerCount == self.config.MaxServedCustomerPerAgent || !qiscusAgent.IsAvailable {
 			self.lastRoundRobinPointer += 1
 			continue
 		}
-		utils.LogWrite(self.logLabel, utils.LOG_DEBUG, fmt.Sprintf("FOUND AVAILABLE AGENT %d [serving %d customers]", pickedAgent.ID, pickedAgent.CustomerCount))
-		self.agents[self.lastRoundRobinPointer].CustomerCount += 1
-		if self.qiscusApi.AssignAgentToRoom(roomId, pickedAgent.ID) != nil {
+		utils.LogWrite(self.logLabel, utils.LOG_DEBUG, fmt.Sprintf("FOUND AVAILABLE AGENT %d [serving %d customers]", pickedAgent, qiscusAgent.CurrentCustomerCount))
+		if self.qiscusApi.AssignAgentToRoom(roomId, pickedAgent) != nil {
 			err = errors.New("FAILED TO ALLOCATE AGENT TO ROOM")
 			break
 		}
 
-		utils.LogWrite(self.logLabel, utils.LOG_INFO, fmt.Sprintf("Agent %d allocated to room: %d", pickedAgent.ID, roomId))
+		utils.LogWrite(self.logLabel, utils.LOG_INFO, fmt.Sprintf("Agent %d allocated to room: %d", pickedAgent, roomId))
 		break
 	}
 
 	self.lastRoundRobinPointer += 1
-
-	self.lock.Unlock()
+  self.lock.Unlock()
 	return
 }
