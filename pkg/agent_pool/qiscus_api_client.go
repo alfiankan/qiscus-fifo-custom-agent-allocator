@@ -64,7 +64,6 @@ func (self *QiscusApiClient) GetAllAgents(page, perPage int) (agentsResponseData
 		return
 	}
 
-
 	return
 
 }
@@ -133,12 +132,12 @@ func (self *QiscusApiClient) GetAgentDetailById(agentId int) (agent QiscusAget, 
 	if response.StatusCode != 200 {
 		body, _ := io.ReadAll(response.Body)
 		utils.LogWrite(self.logLabel, utils.LOG_ERROR, "QISCUS API CALL ERROR", string(body))
-    err = errors.New("FAILED TO GET AGENT DEATAIL VIA API")
+		err = errors.New("FAILED TO GET AGENT DEATAIL VIA API")
 		return
 	}
 	utils.LogWrite(self.logLabel, utils.LOG_INFO, "SUCCESS TO GET AGENT DETAIL")
 
-	var agentsResponseData QiscusAgentListDataApiResponse 
+	var agentsResponseData QiscusAgentListDataApiResponse
 	defer response.Body.Close()
 	err = json.NewDecoder(response.Body).Decode(&agentsResponseData)
 	if err != nil {
@@ -146,12 +145,12 @@ func (self *QiscusApiClient) GetAgentDetailById(agentId int) (agent QiscusAget, 
 		utils.LogWrite(self.logLabel, utils.LOG_ERROR, "QISCUS API RESPONSE DECODE ERROR", err.Error(), response.Status, string(body))
 		return
 	}
-  if len(agentsResponseData.Data) == 0 {
-    err = errors.New("AGENT NOT FOUND")
-    return
-  }
+	if len(agentsResponseData.Data) == 0 {
+		err = errors.New("AGENT NOT FOUND")
+		return
+	}
 
-  agent = agentsResponseData.Data[0]
+	agent = agentsResponseData.Data[0]
 
 	return
 

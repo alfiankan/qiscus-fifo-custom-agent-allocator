@@ -4,9 +4,11 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strconv"
 	"time"
 
 	agentpool "github.com/alfiankan/qiscus-fifo-custom-agent-allocator/pkg/agent_pool"
+	"github.com/alfiankan/qiscus-fifo-custom-agent-allocator/pkg/enqueuer"
 	"github.com/joho/godotenv"
 )
 
@@ -19,6 +21,14 @@ func main() {
 
 	app_id := os.Getenv("QISCUS_APP_ID")
 	secret := os.Getenv("QISCUS_APP_SECRET")
+  webHookSecret :=os.Getenv("SECRET")
+  webhookPort := os.Getenv("PORT")
+  amqp := os.Getenv("RABBIT_MQ_DSN")
+
+  port, _ := strconv.Atoi(webhookPort)
+
+  enq := enqueuer.NewWebHookHandlerEnqueuer(port, webHookSecret, amqp)
+  enq.Run()
 
 	agentPoolCfg := agentpool.AgentPoolConfig{
 		MaxServedCustomerPerAgent: 2,

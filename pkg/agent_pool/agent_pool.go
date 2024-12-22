@@ -114,13 +114,13 @@ func (self *AgentPool) AllocateAgent(roomId int) (err error) {
 		pickedAgent := self.agents[self.lastRoundRobinPointer]
 
 		// get latest customer served count from qiscusApi or continue to next agent ids in pool
-    qiscusAgent, err := self.qiscusApi.GetAgentDetailById(pickedAgent.ID)
-    if err != nil {
-      self.lastRoundRobinPointer += 1
-      continue
-    }
-    pickedAgent.CustomerCount = qiscusAgent.CurrentCustomerCount
-    pickedAgent.IsAvailable = qiscusAgent.IsAvailable
+		qiscusAgent, err := self.qiscusApi.GetAgentDetailById(pickedAgent.ID)
+		if err != nil {
+			self.lastRoundRobinPointer += 1
+			continue
+		}
+		pickedAgent.CustomerCount = qiscusAgent.CurrentCustomerCount
+		pickedAgent.IsAvailable = qiscusAgent.IsAvailable
 
 		if pickedAgent.CustomerCount == self.config.MaxServedCustomerPerAgent || !pickedAgent.IsAvailable {
 			self.lastRoundRobinPointer += 1

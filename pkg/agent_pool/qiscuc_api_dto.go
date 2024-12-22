@@ -39,7 +39,7 @@ type QiscusAget struct {
 }
 
 type QiscusAgentListDataApiResponse struct {
-  Data []QiscusAget `json:"data"`
+	Data []QiscusAget `json:"data"`
 }
 
 type QiscusListAgentsApiResponse struct {
