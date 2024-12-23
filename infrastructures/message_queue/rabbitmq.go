@@ -9,27 +9,48 @@ import (
 )
 
 type MessageQueuRabbitMQ struct {
-	logLabel  string
-	channel   *amqp.Channel
-	queueName string
+	logLabel   string
+	channel    *amqp.Channel
+	connection *amqp.Connection
+	queueName  string
+	amqpDsn    string
 }
 
-func NewMessageQueuRabbitMQ(amqpDsn string, queueName string) (MessageQueue, error) {
+func NewMessageQueuRabbitMQ(amqpDsn string, queueName string) (mq MessageQueue, err error) {
 
-	mq := &MessageQueuRabbitMQ{
+	mqClient := MessageQueuRabbitMQ{
 		logLabel:  "RABBIT_MQ_CLIENT",
 		queueName: queueName,
+		amqpDsn:   amqpDsn,
 	}
 
-	conn, err := amqp.Dial(amqpDsn)
-	if err != nil {
-		utils.LogWrite(mq.logLabel, utils.LOG_ERROR, "DIAL TO RABBITMQ", err.Error())
-		return nil, err
-	}
+	mqClient.Connect()
 
-	mq.channel, err = conn.Channel()
+	// reconnect
+	go func() {
 
-	_, err = mq.channel.QueueDeclare(
+		for {
+			time.Sleep(1 * time.Second)
+			if mqClient.connection.IsClosed() {
+				for {
+					time.Sleep(10 * time.Second)
+					utils.LogWrite(mqClient.logLabel, utils.LOG_INFO, "TRYING REDIAL TO RABBITMQ")
+
+					err := mqClient.Connect()
+
+					if err != nil {
+						utils.LogWrite(mqClient.logLabel, utils.LOG_ERROR, "REDIAL ERROR TO RABBITMQ", err.Error())
+					} else {
+						utils.LogWrite(mqClient.logLabel, utils.LOG_INFO, "REDIAL SUCCESS TO RABBITMQ")
+						break
+					}
+				}
+			}
+		}
+
+	}()
+
+	_, err = mqClient.channel.QueueDeclare(
 		queueName,
 		false,
 		false,
@@ -38,14 +59,31 @@ func NewMessageQueuRabbitMQ(amqpDsn string, queueName string) (MessageQueue, err
 		nil,
 	)
 	if err != nil {
-		utils.LogWrite(mq.logLabel, utils.LOG_ERROR, "DECLARING QUEUE", err.Error())
+		utils.LogWrite(mqClient.logLabel, utils.LOG_ERROR, "DECLARING QUEUE", err.Error())
 		return nil, err
 	}
 
-	return mq, nil
+	return &mqClient, nil
+}
+
+func (self *MessageQueuRabbitMQ) Connect() (err error) {
+	connection, err := amqp.Dial(self.amqpDsn)
+	if err != nil {
+		utils.LogWrite(self.logLabel, utils.LOG_ERROR, "DIAL TO RABBITMQ", err.Error())
+		return
+	}
+	channel, err := connection.Channel()
+	if err != nil {
+		utils.LogWrite(self.logLabel, utils.LOG_ERROR, "DIAL TO RABBITMQ", err.Error())
+		return
+	}
+	self.connection = connection
+	self.channel = channel
+	return
 }
 
 func (self *MessageQueuRabbitMQ) Push(roomId int) (err error) {
+
 	err = self.channel.Publish(
 		"",
 		self.queueName,
@@ -58,7 +96,11 @@ func (self *MessageQueuRabbitMQ) Push(roomId int) (err error) {
 	return
 }
 
-func (self *MessageQueuRabbitMQ) Pull(fn handleNewChatQueued) (err error) {
+func (self *MessageQueuRabbitMQ) Pull(
+	fn handleNewChatQueued,
+	backOffInterval time.Duration,
+	backOffMaxFail int,
+) (err error) {
 
 	msgs, err := self.channel.Consume(
 		self.queueName,
@@ -73,13 +115,11 @@ func (self *MessageQueuRabbitMQ) Pull(fn handleNewChatQueued) (err error) {
 		return
 	}
 
-	deepSleepMaxTried := 100
 	deepSleepThreshold := 0
-	deepSleepInterval := 10 * time.Second
 
 	for msg := range msgs {
-		if deepSleepThreshold > deepSleepMaxTried {
-			time.Sleep(deepSleepInterval)
+		if deepSleepThreshold > backOffMaxFail {
+			time.Sleep(time.Duration(backOffInterval))
 			deepSleepThreshold = 0
 		}
 
@@ -98,7 +138,6 @@ func (self *MessageQueuRabbitMQ) Pull(fn handleNewChatQueued) (err error) {
 				utils.LogWrite(self.logLabel, utils.LOG_DEBUG, "UNACK", err.Error())
 			}
 		} else {
-
 			if err = msg.Ack(false); err != nil {
 				utils.LogWrite(self.logLabel, utils.LOG_DEBUG, "ACK", err.Error())
 			}

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"time"
 
 	messagequeue "github.com/alfiankan/qiscus-fifo-custom-agent-allocator/infrastructures/message_queue"
 	agentpool "github.com/alfiankan/qiscus-fifo-custom-agent-allocator/pkg/agent_pool"
@@ -12,39 +13,22 @@ import (
 )
 
 type WebHookEnqueuer struct {
-	port                  int
-	secret                string
-	logLabel              string
-	messageQueue          messagequeue.MessageQueue
-	appId                 string
-	appSecret             string
-	maxCustServer         int
-	agentPoolIntervalSync int
+	messageQueue messagequeue.MessageQueue
+	cfg          *utils.ApplicationConfig
+	logLabel     string
 }
 
-func NewWebHookHandlerEnqueuer(
-	httpPort int,
-	secret string,
-	rabbitMqDSN string,
-	appId string,
-	appSecret string,
-	maxCustServer int,
-	agentPoolIntervalSync int,
-) *WebHookEnqueuer {
-	mq, err := messagequeue.NewMessageQueuRabbitMQ(rabbitMqDSN, "custom_allocator")
+func NewWebHookHandlerEnqueuer(cfg *utils.ApplicationConfig) *WebHookEnqueuer {
+
+	mq, err := messagequeue.NewMessageQueuRabbitMQ(cfg.Amqp, "custom_allocator")
 	if err != nil {
 		utils.LogWrite("WEBHOOK_HTTP_ENQUEUER", utils.LOG_ERROR, "DIAlING AMQP", err.Error())
 		panic(err)
 	}
 	return &WebHookEnqueuer{
-		port:                  httpPort,
-		secret:                secret,
-		logLabel:              "WEBHOOK_HTTP_ENQUEUER",
-		messageQueue:          mq,
-		appId:                 appId,
-		appSecret:             appSecret,
-		maxCustServer:         maxCustServer,
-		agentPoolIntervalSync: agentPoolIntervalSync,
+		logLabel:     "WEBHOOK_HTTP_ENQUEUER",
+		messageQueue: mq,
+		cfg:          cfg,
 	}
 }
 
@@ -54,7 +38,7 @@ func (self *WebHookEnqueuer) RunWebhookHandler() {
 	e.POST("/allocate", func(c echo.Context) error {
 
 		secret := c.QueryParam("secret")
-		if secret != self.secret {
+		if secret != self.cfg.WebHookSecret {
 			return c.String(http.StatusUnauthorized, "UNAUTHORIZED")
 		}
 
@@ -79,20 +63,23 @@ func (self *WebHookEnqueuer) RunWebhookHandler() {
 
 		return c.String(http.StatusOK, "OK")
 	})
-	e.Logger.Fatal(e.Start(fmt.Sprintf(":%d", self.port)))
+	e.Logger.Fatal(e.Start(fmt.Sprintf(":%d", self.cfg.WebhookPort)))
 
 }
 
 func (self *WebHookEnqueuer) RunAllocator() {
 	agentPoolCfg := agentpool.AgentPoolConfig{
-		MaxServedCustomerPerAgent: self.maxCustServer,
-		SyncInterval:              self.agentPoolIntervalSync,
-		QiscusApiAuthAppId:        self.appId,
-		QiscusApiAuthSecret:       self.appSecret,
-		QiscusBaseHttpApiHost:     "https://multichannel.qiscus.com",
+		MaxServedCustomerPerAgent: self.cfg.MaxCustServer,
+		SyncInterval:              self.cfg.AgentPoolIntervalSync,
+		QiscusApiAuthAppId:        self.cfg.AppId,
+		QiscusApiAuthSecret:       self.cfg.AppSecret,
+		QiscusBaseHttpApiHost:     self.cfg.QiscusApiBaseHost,
 	}
 
 	agentPool := agentpool.NewAgentPoolAllocator(agentPoolCfg)
-	self.messageQueue.Pull(agentPool.AllocateAgent)
-
+	self.messageQueue.Pull(
+		agentPool.AllocateAgent,
+		time.Duration(self.cfg.QueueBackoffSleepIntervalSecond)*time.Second,
+		agentPool.GetTotalAgent()*2,
+	)
 }

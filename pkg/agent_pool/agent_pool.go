@@ -40,6 +40,10 @@ func NewAgentPoolAllocator(cfg AgentPoolConfig) *AgentPool {
 	return pool
 }
 
+func (self *AgentPool) GetTotalAgent() int {
+	return len(self.agents)
+}
+
 func (self *AgentPool) startBackgroundSync() {
 	utils.LogWrite(self.logLabel, utils.LOG_INFO, "Starting Background Sync Ticker")
 	ticker := time.NewTicker(time.Duration(self.config.SyncInterval) * time.Second)
