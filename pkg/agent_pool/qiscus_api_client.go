@@ -13,6 +13,12 @@ import (
 	"github.com/alfiankan/qiscus-fifo-custom-agent-allocator/utils"
 )
 
+type QiscusApiClientInterface interface {
+	GetAllAgents(page, perPage int) (agentsResponseData QiscusListAgentsApiResponse, err error)
+	AssignAgentToRoom(roomId, agentId int) (err error)
+	GetAgentDetailById(agentId int) (agent QiscusAget, err error)
+}
+
 type QiscusApiClient struct {
 	httpClient *http.Client
 	baseHost   string
@@ -21,7 +27,7 @@ type QiscusApiClient struct {
 	logLabel   string
 }
 
-func NewQiscusApiClient(baseHost string, appId string, appSecret string) *QiscusApiClient {
+func NewQiscusApiClient(baseHost string, appId string, appSecret string) QiscusApiClientInterface {
 	return &QiscusApiClient{
 		httpClient: &http.Client{},
 		appId:      appId,

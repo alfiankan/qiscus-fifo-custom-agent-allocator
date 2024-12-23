@@ -23,16 +23,16 @@ type AgentPool struct {
 	logLabel              string
 	lock                  sync.RWMutex
 	lastRoundRobinPointer int
-	qiscusApi             QiscusApiClient
+	QiscusApi             QiscusApiClientInterface
 }
 
-func NewAgentPoolAllocator(cfg AgentPoolConfig) *AgentPool {
+func NewAgentPoolAllocator(cfg AgentPoolConfig, qiscusApiClient QiscusApiClientInterface) *AgentPool {
 	pool := &AgentPool{
 		config:                cfg,
 		agents:                []int{},
 		logLabel:              "AGENT_ALLOCATOR",
 		lastRoundRobinPointer: 0,
-		qiscusApi:             *NewQiscusApiClient(cfg.QiscusBaseHttpApiHost, cfg.QiscusApiAuthAppId, cfg.QiscusApiAuthSecret),
+		QiscusApi:             qiscusApiClient,
 	}
 	pool.syncAgent()
 	go pool.startBackgroundSync()
@@ -68,7 +68,7 @@ func (self *AgentPool) syncAgent() {
 	pageNow := 1
 
 	for {
-		agentsResponseData, err := self.qiscusApi.GetAllAgents(pageNow, 10)
+		agentsResponseData, err := self.QiscusApi.GetAllAgents(pageNow, 10)
 		if err != nil {
 			break
 		}
@@ -110,7 +110,7 @@ func (self *AgentPool) AllocateAgent(roomId int) (err error) {
 		pickedAgent := self.agents[self.lastRoundRobinPointer]
 
 		// get latest customer served count from qiscusApi or continue to next agent ids in pool
-		qiscusAgent, err := self.qiscusApi.GetAgentDetailById(pickedAgent)
+		qiscusAgent, err := self.QiscusApi.GetAgentDetailById(pickedAgent)
 		if err != nil {
 			self.lastRoundRobinPointer += 1
 			continue
@@ -121,7 +121,7 @@ func (self *AgentPool) AllocateAgent(roomId int) (err error) {
 			continue
 		}
 		utils.LogWrite(self.logLabel, utils.LOG_DEBUG, fmt.Sprintf("FOUND AVAILABLE AGENT %d [serving %d customers]", pickedAgent, qiscusAgent.CurrentCustomerCount))
-		if self.qiscusApi.AssignAgentToRoom(roomId, pickedAgent) != nil {
+		if self.QiscusApi.AssignAgentToRoom(roomId, pickedAgent) != nil {
 			err = errors.New("FAILED TO ALLOCATE AGENT TO ROOM")
 			break
 		}
