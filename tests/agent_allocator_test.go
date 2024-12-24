@@ -29,7 +29,7 @@ func TestRoundRobinAllocator(t *testing.T) {
 	agentAllocator.QiscusApi = &qiscusApiMock
 
 	assert.Nil(t, agentAllocator.AllocateAgent(1))
-  agents.Data.Agents.Data[0].CurrentCustomerCount = 1
+	agents.Data.Agents.Data[0].CurrentCustomerCount = 1
 	assert.Error(t, agentAllocator.AllocateAgent(2))
 	assert.Nil(t, agentAllocator.AllocateAgent(2))
 

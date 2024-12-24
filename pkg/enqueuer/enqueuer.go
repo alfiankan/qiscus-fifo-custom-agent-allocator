@@ -78,7 +78,7 @@ func (self *WebHookEnqueuer) RunAllocator() {
 		QiscusBaseHttpApiHost:     self.cfg.QiscusApiBaseHost,
 	}
 
-  qiscusApiClient := agentpool.NewQiscusApiClient(self.cfg.QiscusApiBaseHost, self.cfg.AppId, self.cfg.AppSecret)
+	qiscusApiClient := agentpool.NewQiscusApiClient(self.cfg.QiscusApiBaseHost, self.cfg.AppId, self.cfg.AppSecret)
 
 	agentPool := agentpool.NewAgentPoolAllocator(agentPoolCfg, qiscusApiClient)
 	self.messageQueue.Pull(
