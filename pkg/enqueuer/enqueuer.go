@@ -32,6 +32,7 @@ func NewWebHookHandlerEnqueuer(cfg *utils.ApplicationConfig) *WebHookEnqueuer {
 	}
 }
 
+// Start custom agent allocator webhook handler
 func (self *WebHookEnqueuer) RunWebhookHandler() {
 
 	e := echo.New()
@@ -67,6 +68,7 @@ func (self *WebHookEnqueuer) RunWebhookHandler() {
 
 }
 
+// Run allocator subscriber from queue
 func (self *WebHookEnqueuer) RunAllocator() {
 	agentPoolCfg := agentpool.AgentPoolConfig{
 		MaxServedCustomerPerAgent: self.cfg.MaxCustServer,

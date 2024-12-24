@@ -26,6 +26,8 @@ type AgentPool struct {
 	QiscusApi             QiscusApiClientInterface
 }
 
+// Create new agent allocator using roundrobin, this pool will keep updating at n interval time
+// to qiscuss get all agent list as background sync
 func NewAgentPoolAllocator(cfg AgentPoolConfig, qiscusApiClient QiscusApiClientInterface) *AgentPool {
 	pool := &AgentPool{
 		config:                cfg,
@@ -44,6 +46,7 @@ func (self *AgentPool) GetTotalAgent() int {
 	return len(self.agents)
 }
 
+// Ticker background to update agents list in the pool
 func (self *AgentPool) startBackgroundSync() {
 	utils.LogWrite(self.logLabel, utils.LOG_INFO, "Starting Background Sync Ticker")
 	ticker := time.NewTicker(time.Duration(self.config.SyncInterval) * time.Second)
@@ -91,6 +94,7 @@ func (self *AgentPool) syncAgent() {
 	return
 }
 
+// Allocate to available agent
 func (self *AgentPool) AllocateAgent(roomId int) (err error) {
 	utils.LogWrite(self.logLabel, utils.LOG_INFO, fmt.Sprintf("Allocating to room: %d", roomId))
 

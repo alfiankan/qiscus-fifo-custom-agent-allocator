@@ -96,6 +96,7 @@ func (self *MessageQueuRabbitMQ) Push(roomId int) (err error) {
 	return
 }
 
+// Pull message queue with backoff interval if callback call fail to reduce api call to qiscus
 func (self *MessageQueuRabbitMQ) Pull(
 	fn handleNewChatQueued,
 	backOffInterval time.Duration,
